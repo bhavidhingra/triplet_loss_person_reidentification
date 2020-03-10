@@ -10,6 +10,9 @@ import tensorflow as tf
 import math
 
 import common
+import loss
+import nets.resnet_v1_50 as model
+import fc1024 as head
 
 #import ipdb
 
@@ -122,11 +125,22 @@ def main():
     batch_size = args.batch_p * args.batch_k
     dataset = dataset.batch(batch_size)
 
-    # Later elements are stored in memory while current element is being processed
     dataset = dataset.prefetch(1)
 
     # Since we repeat the data infinitely, we only need a one-shot iterator
     images, fids, pids = dataset.make_one_shot_iterator().get_next()
+
+   
+    endpoints, body_prefix = model.endpoints(images, is_training=True)
+    with tf.name_scope('head'):
+        endpoints = head.head(endpoints, args.embedding_dim, is_training=True)
+
+    dists = loss.cdist(endpoints['emb'], endpoints['emb'])
+    losses = loss.batch_hard(
+        dists, pids, args.margin)
+
+    num_active = tf.reduce_sum(tf.cast(tf.greater(losses, 1e-5), tf.float32))
+    loss_mean = tf.reduce_mean(losses)
 
 
 
