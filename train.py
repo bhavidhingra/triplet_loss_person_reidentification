@@ -5,7 +5,13 @@ import os
 import logging.config
 import sys
 
+import numpy as np
+import tensorflow as tf
+import math
+
 import common
+
+#import ipdb
 
 parser = ArgumentParser(description='Train a triplet loss person re-identification network.')
 
@@ -37,10 +43,36 @@ parser.add_argument(
     help='Path to the checkpoint file of the pretrained network.')
 
 
+parser.add_argument(
+    '--batch_p', default=32, type=common.positive_int,
+    help='The number P used in the PK-batches')
+
+parser.add_argument(
+    '--batch_k', default=4, type=common.positive_int,
+    help='The number K used in PK-batches')
+
 def show_all_parameters(log, args):
     log.info('Training using the following parameters:')
     for key, value in sorted(vars(args).items()):
         log.info('{}: {}'.format(key, value))
+
+
+def sample_k_fids_for_pid(pid, all_fids, all_pids, batch_k):
+    """ Given a PID, select K FIDs of that specific PID. """
+    #ipdb.set_trace()
+    possible_fids = tf.boolean_mask(all_fids, tf.equal(all_pids, pid))
+
+    # The following simply used a subset of K of the possible FIDs
+    # if >= K are available. Otherwise, we first create a padded list
+    # of indices which contain a multiple of the original FID count such
+    # that all of them will be sampled equally likely.
+    count = tf.shape(possible_fids)[0]
+    padded_count = tf.cast(tf.ceil(batch_k / tf.cast(count, tf.float32)), tf.int32) * count
+    full_range = tf.mod(tf.range(padded_count), count)
+
+    shuffled = tf.random_shuffle(full_range)
+    selected_fids = tf.gather(possible_fids, shuffled[:batch_k])
+    return selected_fids, tf.fill([batch_k], pid)
 
 
 def main():
@@ -60,3 +92,45 @@ def main():
         parser.print_help()
         log.error("You didn't specify the 'image_root' argument!")
         sys.exit(1)
+
+    pids, fids = common.load_dataset(args.train_set, args.image_root)
+
+    unique_pids = np.unique(pids)
+    dataset = tf.data.Dataset.from_tensor_slices(unique_pids)
+    dataset = dataset.shuffle(len(unique_pids))
+
+    # Take the dataset size equal to a multiple of the batch-size, so that
+    # we don't get overlap at the end of each epoch.
+    dataset = dataset.take((len(unique_pids) // args.batch_p) * args.batch_p)
+    dataset = dataset.repeat(None)    # Repeat indefinitely.
+
+    # For every PID, get K images.
+    dataset = dataset.map(lambda pid: sample_k_fids_for_pid(
+        pid, all_fids=fids, all_pids=pids, batch_k=args.batch_k))
+
+    # Ungroup/flatten the batches
+    dataset = dataset.apply(tf.contrib.data.unbatch())
+
+    # Convert filenames to actual image tensors.
+    net_input_size = (args.net_input_height, args.net_input_width)
+    dataset = dataset.map(lambda fid, pid: common.fid_to_image(
+                          fid, pid, image_root=args.image_root,
+                          image_size=net_input_size),
+                          num_parallel_calls=args.loading_threads)
+
+    # Group the data into PK batches.
+    batch_size = args.batch_p * args.batch_k
+    dataset = dataset.batch(batch_size)
+
+    # Later elements are stored in memory while current element is being processed
+    dataset = dataset.prefetch(1)
+
+    # Since we repeat the data infinitely, we only need a one-shot iterator
+    images, fids, pids = dataset.make_one_shot_iterator().get_next()
+
+
+
+
+
+if __name__ == '__main__':
+    main()

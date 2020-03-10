@@ -4,6 +4,8 @@
 import os
 from argparse import ArgumentTypeError
 
+import numpy as np
+
 def check_directory(arg, access=os.W_OK, access_str="writeable"):
     if os.path.exists(arg):
         if os.access(arg, access):
@@ -43,3 +45,62 @@ def positive_int(arg):
 def nonnegative_int(arg):
     return number_greater_x(arg, int, -1)
 
+def get_logging_dict(name):
+    return {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            },
+        },
+        'handlers': {
+            'logfile': {
+                'level': 'DEBUG',
+                'formatter': 'standard',
+                'class': 'logging.FileHandler',
+                'filename': name + '.log',
+                'mode': 'a',
+            }
+        },
+        'loggers': {
+            '': {
+                'handlers': ['logfile'],
+                'level': 'DEBUG',
+                'propagate': True
+            },
+            # extra ones to shut up.
+            'tensorflow': {
+                'handlers': ['logfile'],
+                'level': 'INFO',
+            },
+        }
+    }
+
+
+def load_dataset(csv_file, image_root, fail_on_missing=True):
+    """ Loads a dataset .csv file, return PIDs and FIDs. 
+
+        PIDs are the "person IDs", i.e. class names/labels.
+        FIDs are the "file IDs", which are individual relative filenames.
+    """
+    dataset = np.genfromtxt(csv_file, delimiter=',', dtype='|U')
+    pids, fids = dataset.T
+
+    if image_root is not None:
+        missing = np.full(len(fids), False, dtype=bool)
+        for i, fid in enumerate(fids):
+            missing[i] = not os.path.isfile(os.path.join(image_root, fid))
+
+        missing_count = np.sum(missing)
+        if missing_count > 0:
+            if fail_on_missing:
+                raise IOError('Using the `{}` file and `{}` as an image root {}/'
+                              '{} images are missing'.format(
+                              csv_file, image_root, missing_count, len(fids)))
+            else:
+                print ('[Warning] removing {} missing file(s) from the dataset'.format(missing_count))
+                fids = fids[np.logical_not(missing)]
+                pids = pids[np.logical_not(missing)]
+
+    return pids, fids
