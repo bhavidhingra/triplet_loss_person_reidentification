@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 
 from argparse import ArgumentParser
+
 import os
-import logging.config
 import sys
+import time
 
 import numpy as np
 import tensorflow as tf
-import math
 
 import common
 import loss
-import nets.resnet_v1_50 as model
-import fc1024 as head
+from models import Trinet
 
 #import ipdb
 
@@ -20,15 +19,15 @@ parser = ArgumentParser(description='Train a triplet loss person re-identificati
 
 # Required arguments
 parser.add_argument(
-    '--experiment_root', required=True, type=common.writeable_directory,
+    '--experiment_root', default="./marketroot",
     help='Location used to store checkpoints and dumped data.')
 
 parser.add_argument(
-    '--train_set',
+    '--train_set',default="data/market1501_train.csv",
     help='Path to the train_set csv file.')
 
 parser.add_argument(
-    '--image_root', type=common.readable_directory,
+    '--image_root', type=common.readable_directory,default="../Market-1501-v15.09.15",
     help='Path that will be pre-pended to the filenames in the train_set csv')
 
 # Optional with defaults.
@@ -41,9 +40,6 @@ parser.add_argument(
     '--embedding_dim', default=128, type=common.positive_int,
     help='Dimensionality of the embedding space.')
 
-parser.add_argument(
-    '--initial_checkpoint', default=None,
-    help='Path to the checkpoint file of the pretrained network.')
 
 
 parser.add_argument(
@@ -54,10 +50,68 @@ parser.add_argument(
     '--batch_k', default=4, type=common.positive_int,
     help='The number K used in PK-batches')
 
-def show_all_parameters(log, args):
-    log.info('Training using the following parameters:')
+parser.add_argument(
+    '--net_input_height', default=256, type=common.positive_int,
+    help='Height of the input directly fed into the network.')
+
+parser.add_argument(
+    '--net_input_width', default=128, type=common.positive_int,
+    help='Width of the input directly fed into the network.')
+
+parser.add_argument(
+    '--learning_rate', default=3e-4, type=common.positive_float,
+    help='The initial value of the learning-rate, before it kicks in.')
+
+parser.add_argument(
+    '--train_iterations', default=25000, type=common.positive_int,
+    help='Number of training iterations.')
+
+parser.add_argument(
+    '--decay_start_iteration', default=15000, type=int,
+    help='At which iteration the learning-rate decay should kick-in.'
+         'Set to -1 to disable decay completely.')
+
+parser.add_argument(
+    '--checkpoint_frequency', default=1000, type=common.nonnegative_int,
+    help='After how many iterations a checkpoint is stored. Set this to 0 to '
+         'disable intermediate storing. This will result in only one final '
+         'checkpoint.')
+
+parser.add_argument(
+    '--loading_threads', default=8, type=common.positive_int,
+    help='Number of threads used for parallel loading.')
+
+parser.add_argument(
+    '--margin', default='soft', type=common.float_or_string,
+    help='What margin to use: a float value for hard-margin, "soft" for '
+         'soft-margin, or no margin if "none".')
+
+
+parser.add_argument(
+    '--flip_augment', action='store_true', default=False,
+    help='When this flag is provided, flip augmentation is performed.')
+
+parser.add_argument(
+    '--crop_augment', action='store_true', default=False,
+    help='When this flag is provided, crop augmentation is performed. Based on'
+         'The `crop_height` and `crop_width` parameters. Changing this flag '
+         'thus likely changes the network input size!')
+
+
+parser.add_argument(
+    '--pre_crop_height', default=288, type=common.positive_int,
+    help='Height used to resize a loaded image. This is ignored when no crop '
+         'augmentation is applied.')
+
+parser.add_argument(
+    '--pre_crop_width', default=144, type=common.positive_int,
+    help='Width used to resize a loaded image. This is ignored when no crop '
+         'augmentation is applied.')
+
+def show_all_parameters( args):
+    print('Training using the following parameters:')
     for key, value in sorted(vars(args).items()):
-        log.info('{}: {}'.format(key, value))
+        print('{}: {}'.format(key, value))
 
 
 def sample_k_fids_for_pid(pid, all_fids, all_pids, batch_k):
@@ -70,30 +124,34 @@ def sample_k_fids_for_pid(pid, all_fids, all_pids, batch_k):
     # of indices which contain a multiple of the original FID count such
     # that all of them will be sampled equally likely.
     count = tf.shape(possible_fids)[0]
-    padded_count = tf.cast(tf.ceil(batch_k / tf.cast(count, tf.float32)), tf.int32) * count
-    full_range = tf.mod(tf.range(padded_count), count)
+    padded_count = tf.cast(tf.math.ceil(batch_k / tf.cast(count, tf.float32)), tf.int32) * count
+    full_range = tf.math.mod(tf.range(padded_count), count)
 
-    shuffled = tf.random_shuffle(full_range)
+    shuffled = tf.random.shuffle(full_range)
     selected_fids = tf.gather(possible_fids, shuffled[:batch_k])
     return selected_fids, tf.fill([batch_k], pid)
 
 
-def main():
-    args = parser.parse_args()
-    
-    log_file = os.path.join(args.experiment_root, "train")
-    logging.config.dictConfig(common.get_logging_dict(log_file))
-    log = logging.getLogger('train')
 
-    show_all_parameters(log, args)
+def main():
+    # my_devices = tf.config.experimental.list_physical_devices(device_type='CPU')
+    # tf.config.experimental.set_visible_devices(devices= my_devices, device_type='CPU')
+
+    # # To find out which devices your operations and tensors are assigned to
+    # tf.debugging.set_log_device_placement(True)
+    args = parser.parse_args(args=[])
+    
+    
+
+    show_all_parameters( args)
 
     if not args.train_set:
         parser.print_help()
-        log.error("You didn't specify the 'train_set' argument!")
+        print("You didn't specify the 'train_set' argument!")
         sys.exit(1)
     if not args.image_root:
         parser.print_help()
-        log.error("You didn't specify the 'image_root' argument!")
+        print("You didn't specify the 'image_root' argument!")
         sys.exit(1)
 
     pids, fids = common.load_dataset(args.train_set, args.image_root)
@@ -112,37 +170,78 @@ def main():
         pid, all_fids=fids, all_pids=pids, batch_k=args.batch_k))
 
     # Ungroup/flatten the batches
-    dataset = dataset.apply(tf.contrib.data.unbatch())
+    dataset = dataset.unbatch()
 
     # Convert filenames to actual image tensors.
     net_input_size = (args.net_input_height, args.net_input_width)
+    pre_crop_size = (args.pre_crop_height, args.pre_crop_width)
     dataset = dataset.map(lambda fid, pid: common.fid_to_image(
                           fid, pid, image_root=args.image_root,
-                          image_size=net_input_size),
-                          num_parallel_calls=args.loading_threads)
+                          image_size=pre_crop_size if args.crop_augment else net_input_size)
+                          )
+    
+    if args.flip_augment:
+        dataset = dataset.map(
+            lambda im, fid, pid: (tf.image.random_flip_left_right(im), fid, pid))
+    if args.crop_augment:
+        dataset = dataset.map(
+            lambda im, fid, pid: (tf.image.random_crop(im, net_input_size + (3,)), fid, pid))
+
 
     # Group the data into PK batches.
     batch_size = args.batch_p * args.batch_k
     dataset = dataset.batch(batch_size)
 
     dataset = dataset.prefetch(1)
+    dataiter = iter(dataset)
 
-    # Since we repeat the data infinitely, we only need a one-shot iterator
-    images, fids, pids = dataset.make_one_shot_iterator().get_next()
+    model = Trinet(args.embedding_dim)
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(args.learning_rate,args.train_iterations - args.decay_start_iteration, 0.001)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+    
+    writer = tf.summary.create_file_writer(args.experiment_root)
+    ckpt = tf.train.Checkpoint(step=tf.Variable(0), optimizer=optimizer, net=model)
+    manager = tf.train.CheckpointManager(ckpt, args.experiment_root, max_to_keep=10)
+
+    if args.resume:
+        ckpt.restore(manager.latest_checkpoint)
+
+    for epoch in range(args.train_iterations):
+        
+        # for images,fids,pids in dataset:
+        images,fids,pids = next(dataiter)
+        with tf.GradientTape() as tape:
+            emb = model(images)
+            dists = loss.cdist(emb,emb)
+            losses,top1,prec,topksame,negdist,posdist = loss.batch_hard(dists,pids,args.margin,args.batch_k)
+            lossavg = tf.reduce_mean(losses)
+            lossnp = losses.numpy()
+        with writer.as_default():
+            tf.summary.scalar("loss",lossavg,step=epoch)
+            tf.summary.scalar('batch_top1', top1,step=epoch)
+            tf.summary.scalar('batch_prec_at_{}'.format(args.batch_k-1), prec,step=epoch)
+            tf.summary.histogram('losses',losses,step=epoch)
+            tf.summary.histogram('embedding_dists', dists,step=epoch)
+            tf.summary.histogram('embedding_pos_dists', negdist,step=epoch)
+            tf.summary.histogram('embedding_neg_dists', posdist,step=epoch)
+            
+        print('iter:{:6d}, loss min|avg|max: {:.3f}|{:.3f}|{:6.3f}, '
+                ' batch-p@{}: {:.2%}'.format(
+                    epoch,
+                    float(np.min(lossnp)),
+                    float(np.mean(lossnp)),
+                    float(np.max(lossnp)),
+                    args.batch_k-1, float(prec)))
+        grad = tape.gradient(lossavg,model.trainable_variables)
+        optimizer.apply_gradients(zip(grad,model.trainable_variables))
+        ckpt.step.assign_add(1)
+        if epoch%args.checkpoint_frequency == 0:
+            manager.save()
+                
+                
+
 
    
-    endpoints, body_prefix = model.endpoints(images, is_training=True)
-    with tf.name_scope('head'):
-        endpoints = head.head(endpoints, args.embedding_dim, is_training=True)
-
-    dists = loss.cdist(endpoints['emb'], endpoints['emb'])
-    losses = loss.batch_hard(
-        dists, pids, args.margin)
-
-    num_active = tf.reduce_sum(tf.cast(tf.greater(losses, 1e-5), tf.float32))
-    loss_mean = tf.reduce_mean(losses)
-
-
 
 
 

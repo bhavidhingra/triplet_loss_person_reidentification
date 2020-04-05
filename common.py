@@ -5,6 +5,7 @@ import os
 from argparse import ArgumentTypeError
 
 import numpy as np
+import tensorflow as tf
 
 def check_directory(arg, access=os.W_OK, access_str="writeable"):
     if os.path.exists(arg):
@@ -42,8 +43,18 @@ def number_greater_x(arg, _type, x):
 def positive_int(arg):
     return number_greater_x(arg, int, 0)
 
+def positive_float(arg):
+    return number_greater_x(arg, float, 0)
+
 def nonnegative_int(arg):
     return number_greater_x(arg, int, -1)
+
+def float_or_string(arg):
+    """Tries to convert the string to float, otherwise returns the string."""
+    try:
+        return float(arg)
+    except (ValueError, TypeError):
+        return arg
 
 def get_logging_dict(name):
     return {
@@ -77,6 +88,21 @@ def get_logging_dict(name):
         }
     }
 
+
+def fid_to_image(fid, pid, image_root, image_size):
+    """ Loads and resizes an image given by FID. Pass-through the PID. """
+    # Since there is no symbolic path.join, we just add a '/' to be sure.
+    image_encoded = tf.io.read_file(tf.strings.reduce_join([image_root, '/', fid]))
+
+    # tf.image.decode_image doesn't set the shape, not even the dimensionality,
+    # because it potentially loads animated .gif files. Instead, we use either
+    # decode_jpeg or decode_png, each of which can decode both.
+    # Sounds ridiculous, but is true:
+    # https://github.com/tensorflow/tensorflow/issues/9356#issuecomment-309144064
+    image_decoded = tf.image.decode_jpeg(image_encoded, channels=3)
+    image_resized = tf.image.resize(image_decoded, image_size)
+
+    return image_resized, fid, pid
 
 def load_dataset(csv_file, image_root, fail_on_missing=True):
     """ Loads a dataset .csv file, return PIDs and FIDs. 
