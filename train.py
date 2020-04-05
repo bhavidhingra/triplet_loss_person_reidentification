@@ -13,100 +13,68 @@ import common
 import loss
 from models import Trinet
 
-#import ipdb
-
-parser = ArgumentParser(description='Train a triplet loss person re-identification network.')
+parser = ArgumentParser()
 
 # Required arguments
 parser.add_argument(
-    '--experiment_root', default="./marketroot",
-    help='Location used to store checkpoints and dumped data.')
+    '--experiment_root', default="./marketroot")
 
 parser.add_argument(
-    '--train_set',default="data/market1501_train.csv",
-    help='Path to the train_set csv file.')
+    '--train_set',default="data/market1501_train.csv")
 
 parser.add_argument(
-    '--image_root', type=common.readable_directory,default="../Market-1501-v15.09.15",
-    help='Path that will be pre-pended to the filenames in the train_set csv')
+    '--image_root', type=common.readable_directory,default="../Market-1501-v15.09.15")
 
 # Optional with defaults.
 parser.add_argument(
-    '--resume', action='store_true', default=False,
-    help='With this flag, all other arguments apart from the experiment_root'
-         'are ignored and a previously saved set of arguments is loaded.')
+    '--resume', default=False)
 
 parser.add_argument(
-    '--embedding_dim', default=128, type=common.positive_int,
-    help='Dimensionality of the embedding space.')
-
-
+    '--embedding_dim', default=128)
 
 parser.add_argument(
-    '--batch_p', default=32, type=common.positive_int,
-    help='The number P used in the PK-batches')
+    '--batch_p', default=32)
 
 parser.add_argument(
-    '--batch_k', default=4, type=common.positive_int,
-    help='The number K used in PK-batches')
+    '--batch_k', default=4)
 
 parser.add_argument(
-    '--net_input_height', default=256, type=common.positive_int,
-    help='Height of the input directly fed into the network.')
+    '--net_input_height', default=256)
 
 parser.add_argument(
-    '--net_input_width', default=128, type=common.positive_int,
-    help='Width of the input directly fed into the network.')
+    '--net_input_width', default=128)
 
 parser.add_argument(
-    '--learning_rate', default=3e-4, type=common.positive_float,
-    help='The initial value of the learning-rate, before it kicks in.')
+    '--learning_rate', default=3e-4, type=common.positive_float)
 
 parser.add_argument(
-    '--train_iterations', default=25000, type=common.positive_int,
-    help='Number of training iterations.')
+    '--train_iterations', default=25000, type=common.positive_int)
 
 parser.add_argument(
-    '--decay_start_iteration', default=15000, type=int,
-    help='At which iteration the learning-rate decay should kick-in.'
-         'Set to -1 to disable decay completely.')
+    '--decay_start_iteration', default=15000, type=int)
 
 parser.add_argument(
-    '--checkpoint_frequency', default=1000, type=common.nonnegative_int,
-    help='After how many iterations a checkpoint is stored. Set this to 0 to '
-         'disable intermediate storing. This will result in only one final '
-         'checkpoint.')
+    '--checkpoint_frequency', default=1000, type=common.nonnegative_int)
 
 parser.add_argument(
-    '--loading_threads', default=8, type=common.positive_int,
-    help='Number of threads used for parallel loading.')
+    '--loading_threads', default=8)
 
 parser.add_argument(
-    '--margin', default='soft', type=common.float_or_string,
-    help='What margin to use: a float value for hard-margin, "soft" for '
-         'soft-margin, or no margin if "none".')
+    '--margin', default='soft', type=common.float_or_string)
 
 
 parser.add_argument(
-    '--flip_augment', action='store_true', default=False,
-    help='When this flag is provided, flip augmentation is performed.')
+    '--flip_augment', default=False)
 
 parser.add_argument(
-    '--crop_augment', action='store_true', default=False,
-    help='When this flag is provided, crop augmentation is performed. Based on'
-         'The `crop_height` and `crop_width` parameters. Changing this flag '
-         'thus likely changes the network input size!')
+    '--crop_augment', default=False)
 
 
 parser.add_argument(
-    '--pre_crop_height', default=288, type=common.positive_int,
-    help='Height used to resize a loaded image. This is ignored when no crop '
-         'augmentation is applied.')
+    '--pre_crop_height', default=288)
 
 parser.add_argument(
-    '--pre_crop_width', default=144, type=common.positive_int,
-    help='Width used to resize a loaded image. This is ignored when no crop '
-         'augmentation is applied.')
+    '--pre_crop_width', default=144)
 
 def show_all_parameters( args):
     print('Training using the following parameters:')
@@ -116,13 +84,9 @@ def show_all_parameters( args):
 
 def sample_k_fids_for_pid(pid, all_fids, all_pids, batch_k):
     """ Given a PID, select K FIDs of that specific PID. """
-    #ipdb.set_trace()
+    
     possible_fids = tf.boolean_mask(all_fids, tf.equal(all_pids, pid))
 
-    # The following simply used a subset of K of the possible FIDs
-    # if >= K are available. Otherwise, we first create a padded list
-    # of indices which contain a multiple of the original FID count such
-    # that all of them will be sampled equally likely.
     count = tf.shape(possible_fids)[0]
     padded_count = tf.cast(tf.math.ceil(batch_k / tf.cast(count, tf.float32)), tf.int32) * count
     full_range = tf.math.mod(tf.range(padded_count), count)
