@@ -26,55 +26,41 @@ parser.add_argument(
     '--image_root', type=common.readable_directory,default="../Market-1501-v15.09.15")
 
 # Optional with defaults.
-parser.add_argument(
-    '--resume', default=False)
+parser.add_argument('--resume', default=False)
 
-parser.add_argument(
-    '--embedding_dim', default=128)
+parser.add_argument('--embedding_dim', default=128)
 
-parser.add_argument(
-    '--batch_p', default=32)
+parser.add_argument('--batch_p', default=32)
 
-parser.add_argument(
-    '--batch_k', default=4)
+parser.add_argument('--batch_k', default=4)
 
-parser.add_argument(
-    '--net_input_height', default=256)
+parser.add_argument('--net_input_height', default=256)
 
-parser.add_argument(
-    '--net_input_width', default=128)
+parser.add_argument('--net_input_width', default=128)
 
-parser.add_argument(
-    '--learning_rate', default=3e-4, type=common.positive_float)
+parser.add_argument('--learning_rate', default=3e-4, type=common.positive_float)
 
-parser.add_argument(
-    '--train_iterations', default=25000, type=common.positive_int)
+parser.add_argument('--train_iterations', default=25000, type=common.positive_int)
 
-parser.add_argument(
-    '--decay_start_iteration', default=15000, type=int)
+parser.add_argument('--decay_start_iteration', default=15000, type=int)
 
-parser.add_argument(
-    '--checkpoint_frequency', default=1000, type=common.nonnegative_int)
+parser.add_argument('--checkpoint_frequency', default=1000, type=common.nonnegative_int)
 
-parser.add_argument(
-    '--loading_threads', default=8)
+parser.add_argument('--loading_threads', default=8)
 
-parser.add_argument(
-    '--margin', default='soft', type=common.float_or_string)
+parser.add_argument('--margin', default='soft', type=common.float_or_string)
 
 
-parser.add_argument(
-    '--flip_augment', default=False)
+parser.add_argument('--flip_augment', default=False)
 
-parser.add_argument(
-    '--crop_augment', default=False)
+parser.add_argument('--crop_augment', default=False)
 
 
-parser.add_argument(
-    '--pre_crop_height', default=288)
+parser.add_argument('--pre_crop_height', default=288)
 
-parser.add_argument(
-    '--pre_crop_width', default=144)
+parser.add_argument('--pre_crop_width', default=144)
+
+parser.add_argument('--decay_rate', default=0.01)
 
 def show_all_parameters( args):
     print('Training using the following parameters:')
