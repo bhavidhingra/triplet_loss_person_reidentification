@@ -160,8 +160,8 @@ def main():
     dataiter = iter(dataset)
 
     model = Trinet(args.embedding_dim)
-    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(args.learning_rate,args.train_iterations - args.decay_start_iteration, 0.001)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+    # lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(args.learning_rate,args.train_iterations - args.decay_start_iteration, 0.001)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
     
     writer = tf.summary.create_file_writer(args.experiment_root)
     ckpt = tf.train.Checkpoint(step=tf.Variable(0), optimizer=optimizer, net=model)
@@ -184,18 +184,24 @@ def main():
             tf.summary.scalar("loss",lossavg,step=epoch)
             tf.summary.scalar('batch_top1', top1,step=epoch)
             tf.summary.scalar('batch_prec_at_{}'.format(args.batch_k-1), prec,step=epoch)
+            tf.summary.scalar('learning_rate',optimizer.lr,step=epoch)
             tf.summary.histogram('losses',losses,step=epoch)
             tf.summary.histogram('embedding_dists', dists,step=epoch)
             tf.summary.histogram('embedding_pos_dists', negdist,step=epoch)
             tf.summary.histogram('embedding_neg_dists', posdist,step=epoch)
             
         print('iter:{:6d}, loss min|avg|max: {:.3f}|{:.3f}|{:6.3f}, '
-                ' batch-p@{}: {:.2%}'.format(
-                    epoch,
-                    float(np.min(lossnp)),
-                    float(np.mean(lossnp)),
-                    float(np.max(lossnp)),
-                    args.batch_k-1, float(prec)))
+            ' batch-p@{}: {:.2%} , lr:{:.4f}'.format(
+                epoch,
+                float(np.min(lossnp)),
+                float(np.mean(lossnp)),
+                float(np.max(lossnp)),
+                args.batch_k-1, float(prec),optimizer.lr.numpy()))
+        
+        if epoch > args.decay_start_iteration:
+            decayed_lr = args.learning_rate*args.decay_rate^((epoch-args.decay_start_iteration)/(args.train_iterations-args.decay_start_iteration))
+            optimizer.lr.update(decayed_lr)
+
         grad = tape.gradient(lossavg,model.trainable_variables)
         optimizer.apply_gradients(zip(grad,model.trainable_variables))
         ckpt.step.assign_add(1)
