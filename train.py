@@ -146,8 +146,14 @@ def main():
     dataiter = iter(dataset)
 
     model = Trinet(args.embedding_dim)
+    lr = args.learning_rate
+    decay_rate=0.01
+    def expdecay_lr():
+        global lr
+        lr = args.learning_rate*pow(decay_rate,max(0,epoch-args.decay_start_iteration)/float(args.train_iterations-args.decay_start_iteration))
+        return lr
     # lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(args.learning_rate,args.train_iterations - args.decay_start_iteration, 0.001)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=expdecay_lr,beta_1=0.9,beta_2=0.999,epsilon=0.0001)
     
     writer = tf.summary.create_file_writer(args.experiment_root)
     ckpt = tf.train.Checkpoint(step=tf.Variable(0), optimizer=optimizer, net=model)
@@ -184,9 +190,6 @@ def main():
                 float(np.max(lossnp)),
                 args.batch_k-1, float(prec),optimizer.lr.numpy()))
         
-        if epoch > args.decay_start_iteration:
-            decayed_lr = args.learning_rate*args.decay_rate^((epoch-args.decay_start_iteration)/(args.train_iterations-args.decay_start_iteration))
-            optimizer.lr.update(decayed_lr)
 
         grad = tape.gradient(lossavg,model.trainable_variables)
         optimizer.apply_gradients(zip(grad,model.trainable_variables))
