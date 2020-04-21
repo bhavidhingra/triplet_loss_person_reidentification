@@ -45,10 +45,8 @@ def average_precision(y_true, y_score):
 
 
 def main():
-    
     args = parser.parse_args([])
 
-    
     query_pids, query_fids = common.load_dataset(args.query_dataset, None)
     gallery_pids, gallery_fids = common.load_dataset(args.gallery_dataset, None)
 
@@ -71,16 +69,16 @@ def main():
     for pids,fids,embs in dataset:
         try:
             distances = loss.cdist(embs,gallery_embs)
-            
+
             print('\rEvaluating batch {}-{}/{}'.format(
                     start_idx, start_idx + len(fids), len(query_fids)))
             start_idx+=len(fids)
         except tf.errors.OutOfRangeError:
-            print()  
+            print()
             break
 
         pids, fids = np.array(pids, '|U'), np.array(fids, '|U')
-        
+
         pid_matches = gallery_pids[None] == pids[:,None]
 
 
@@ -98,15 +96,13 @@ def main():
                 if pids[i] not in uniqpids:
                     uniqpids.append(pids[i])
                     temp=np.where(pid_matches[i,sorteddist])[0]
-                    if len(temp)>=3: 
+                    if len(temp)>=3:
                         fnames[fids[i]]=list(np.array(gallery_fids[sorteddist][temp[:3]],'|U'))
             cmc[k:] += 1
 
     cmc = cmc / float(len(query_pids))
     mean_ap = np.mean(aps)
 
-    
-    
     print('mAP: {:.2%} | top-1: {:.2%} top-2: {:.2%} | top-5: {:.2%} | top-10: {:.2%}'.format(
         mean_ap, cmc[0], cmc[1], cmc[4], cmc[9]))
 

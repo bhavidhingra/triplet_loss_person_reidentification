@@ -71,7 +71,7 @@ ckpt.restore(manager.latest_checkpoint).expect_partial()
 
 with h5py.File(args.filename, 'w') as f_out:
     emb_storage = np.zeros((len(data_fids) , args.embedding_dim), np.float32)
-    start_idx = 0 
+    start_idx = 0
     for images,fids,pids in dataset:
         emb = model(images,training=False)
         emb_storage[start_idx:start_idx+len(emb)]=emb
