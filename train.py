@@ -37,6 +37,7 @@ parser.add_argument('--flip_augment', default=False)
 parser.add_argument('--crop_augment', default=False)
 parser.add_argument('--pre_crop_height', default=288)
 parser.add_argument('--pre_crop_width', default=144)
+parser.add_argument('--decay_rate', default=0.01)
 
 def show_all_parameters( args):
     print('Training using the following parameters:')
@@ -120,8 +121,19 @@ def main():
     dataiter = iter(dataset)
 
     model = Trinet(args.embedding_dim)
+<<<<<<< HEAD
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(args.learning_rate, args.train_iterations - args.decay_start_iteration, 0.001)
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+=======
+    lr = args.learning_rate
+    decay_rate=0.01
+    def expdecay_lr():
+        global lr
+        lr = args.learning_rate*pow(decay_rate,max(0,epoch-args.decay_start_iteration)/float(args.train_iterations-args.decay_start_iteration))
+        return lr
+    # lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(args.learning_rate,args.train_iterations - args.decay_start_iteration, 0.001)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=expdecay_lr,beta_1=0.9,beta_2=0.999,epsilon=0.0001)
+>>>>>>> 621de808073f623b3eb2c5c2af840696edeb9a97
     
     writer = tf.summary.create_file_writer(args.experiment_root)
     ckpt = tf.train.Checkpoint(step=tf.Variable(0), optimizer=optimizer, net=model)
@@ -144,12 +156,14 @@ def main():
             tf.summary.scalar("loss",lossavg,step=epoch)
             tf.summary.scalar('batch_top1', top1,step=epoch)
             tf.summary.scalar('batch_prec_at_{}'.format(args.batch_k-1), prec,step=epoch)
+            tf.summary.scalar('learning_rate',optimizer.lr,step=epoch)
             tf.summary.histogram('losses',losses,step=epoch)
             tf.summary.histogram('embedding_dists', dists,step=epoch)
             tf.summary.histogram('embedding_pos_dists', negdist,step=epoch)
             tf.summary.histogram('embedding_neg_dists', posdist,step=epoch)
 
         print('iter:{:6d}, loss min|avg|max: {:.3f}|{:.3f}|{:6.3f}, '
+<<<<<<< HEAD
                 ' batch-p@{}: {:.2%}'.format(
                     epoch,
                     float(np.min(lossnp)),
@@ -158,6 +172,18 @@ def main():
                     args.batch_k-1, float(prec)))
         grad = tape.gradient(lossavg, model.trainable_variables)
         optimizer.apply_gradients(zip(grad, model.trainable_variables))
+=======
+            ' batch-p@{}: {:.2%} , lr:{:.4f}'.format(
+                epoch,
+                float(np.min(lossnp)),
+                float(np.mean(lossnp)),
+                float(np.max(lossnp)),
+                args.batch_k-1, float(prec),optimizer.lr.numpy()))
+        
+
+        grad = tape.gradient(lossavg,model.trainable_variables)
+        optimizer.apply_gradients(zip(grad,model.trainable_variables))
+>>>>>>> 621de808073f623b3eb2c5c2af840696edeb9a97
         ckpt.step.assign_add(1)
         if epoch % args.checkpoint_frequency == 0:
             manager.save()
