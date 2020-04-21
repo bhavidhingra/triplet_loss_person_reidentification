@@ -16,65 +16,27 @@ from models import Trinet
 parser = ArgumentParser()
 
 # Required arguments
-parser.add_argument(
-    '--experiment_root', default="./marketroot")
-
-parser.add_argument(
-    '--train_set',default="data/market1501_train.csv")
-
-parser.add_argument(
-    '--image_root', type=common.readable_directory,default="../Market-1501-v15.09.15")
+parser.add_argument('--experiment_root', default="./marketroot")
+parser.add_argument('--train_set',default="data/market1501_train.csv")
+parser.add_argument('--image_root', type=common.readable_directory, default="../Market-1501-v15.09.15")
 
 # Optional with defaults.
-parser.add_argument(
-    '--resume', default=False)
-
-parser.add_argument(
-    '--embedding_dim', default=128)
-
-parser.add_argument(
-    '--batch_p', default=32)
-
-parser.add_argument(
-    '--batch_k', default=4)
-
-parser.add_argument(
-    '--net_input_height', default=256)
-
-parser.add_argument(
-    '--net_input_width', default=128)
-
-parser.add_argument(
-    '--learning_rate', default=3e-4, type=common.positive_float)
-
-parser.add_argument(
-    '--train_iterations', default=25000, type=common.positive_int)
-
-parser.add_argument(
-    '--decay_start_iteration', default=15000, type=int)
-
-parser.add_argument(
-    '--checkpoint_frequency', default=1000, type=common.nonnegative_int)
-
-parser.add_argument(
-    '--loading_threads', default=8)
-
-parser.add_argument(
-    '--margin', default='soft', type=common.float_or_string)
-
-
-parser.add_argument(
-    '--flip_augment', default=False)
-
-parser.add_argument(
-    '--crop_augment', default=False)
-
-
-parser.add_argument(
-    '--pre_crop_height', default=288)
-
-parser.add_argument(
-    '--pre_crop_width', default=144)
+parser.add_argument('--resume', default=False)
+parser.add_argument('--embedding_dim', default=128)
+parser.add_argument('--batch_p', default=32)
+parser.add_argument('--batch_k', default=4)
+parser.add_argument('--net_input_height', default=256)
+parser.add_argument('--net_input_width', default=128)
+parser.add_argument('--learning_rate', default=3e-4, type=common.positive_float)
+parser.add_argument('--train_iterations', default=25000, type=common.positive_int)
+parser.add_argument('--decay_start_iteration', default=15000, type=int)
+parser.add_argument('--checkpoint_frequency', default=1000, type=common.nonnegative_int)
+parser.add_argument('--loading_threads', default=8)
+parser.add_argument('--margin', default='soft', type=common.float_or_string)
+parser.add_argument('--flip_augment', default=False)
+parser.add_argument('--crop_augment', default=False)
+parser.add_argument('--pre_crop_height', default=288)
+parser.add_argument('--pre_crop_width', default=144)
 
 def show_all_parameters( args):
     print('Training using the following parameters:')
@@ -105,8 +67,6 @@ def main():
     # tf.debugging.set_log_device_placement(True)
     args = parser.parse_args(args=[])
     
-    
-
     show_all_parameters( args)
 
     if not args.train_set:
@@ -160,7 +120,7 @@ def main():
     dataiter = iter(dataset)
 
     model = Trinet(args.embedding_dim)
-    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(args.learning_rate,args.train_iterations - args.decay_start_iteration, 0.001)
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(args.learning_rate, args.train_iterations - args.decay_start_iteration, 0.001)
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
     
     writer = tf.summary.create_file_writer(args.experiment_root)
@@ -172,14 +132,14 @@ def main():
 
     for epoch in range(args.train_iterations):
         
-        # for images,fids,pids in dataset:
-        images,fids,pids = next(dataiter)
+        images, fids, pids = next(dataiter)
         with tf.GradientTape() as tape:
             emb = model(images)
-            dists = loss.cdist(emb,emb)
-            losses,top1,prec,topksame,negdist,posdist = loss.batch_hard(dists,pids,args.margin,args.batch_k)
+            dists = loss.cdist(emb, emb)
+            losses, top1, prec, topksame, negdist, posdist = loss.batch_hard(dists, pids, args.margin, args.batch_k)
             lossavg = tf.reduce_mean(losses)
             lossnp = losses.numpy()
+
         with writer.as_default():
             tf.summary.scalar("loss",lossavg,step=epoch)
             tf.summary.scalar('batch_top1', top1,step=epoch)
@@ -188,7 +148,7 @@ def main():
             tf.summary.histogram('embedding_dists', dists,step=epoch)
             tf.summary.histogram('embedding_pos_dists', negdist,step=epoch)
             tf.summary.histogram('embedding_neg_dists', posdist,step=epoch)
-            
+
         print('iter:{:6d}, loss min|avg|max: {:.3f}|{:.3f}|{:6.3f}, '
                 ' batch-p@{}: {:.2%}'.format(
                     epoch,
@@ -196,10 +156,10 @@ def main():
                     float(np.mean(lossnp)),
                     float(np.max(lossnp)),
                     args.batch_k-1, float(prec)))
-        grad = tape.gradient(lossavg,model.trainable_variables)
-        optimizer.apply_gradients(zip(grad,model.trainable_variables))
+        grad = tape.gradient(lossavg, model.trainable_variables)
+        optimizer.apply_gradients(zip(grad, model.trainable_variables))
         ckpt.step.assign_add(1)
-        if epoch%args.checkpoint_frequency == 0:
+        if epoch % args.checkpoint_frequency == 0:
             manager.save()
                 
                 

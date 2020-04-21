@@ -28,7 +28,7 @@ def batch_hard(dists, pids, margin,batch_precision_at_k=1):
         else:
             raise NotImplementedError(
                 'The margin {} is not implemented in batch_hard'.format(margin))
-        
+
         _, indices = tf.nn.top_k(-dists, k=batch_precision_at_k+1)
 
         indices = indices[:,1:]
