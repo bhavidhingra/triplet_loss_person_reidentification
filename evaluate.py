@@ -16,11 +16,11 @@ parser = ArgumentParser()
 
 parser.add_argument('--query_dataset',default='data/market1501_query.csv')
 
-parser.add_argument('--query_embeddings',default='/home/mythri/Downloads/marketroot2/market1501_query_embeddings.h5')
+parser.add_argument('--query_embeddings',default='./marketroot/market1501_query_embeddings.h5')
 
 parser.add_argument('--gallery_dataset',default='data/market1501_test.csv')
 
-parser.add_argument('--gallery_embeddings',default='/home/mythri/Downloads/marketroot2/market1501_test_embeddings.h5')
+parser.add_argument('--gallery_embeddings',default='./marketroot/market1501_test_embeddings.h5')
 
 parser.add_argument('--filename',default='/home/mythri/Downloads/marketroot2/evalresults.json')
 

@@ -15,7 +15,7 @@ import h5py
 parser = ArgumentParser()
 
 
-parser.add_argument('--experiment_root', default="/home/mythri/Downloads/marketroot1/")
+parser.add_argument('--experiment_root', default="./marketroot")
 
 parser.add_argument('--dataset', default="data/market1501_query.csv")
 
@@ -26,7 +26,7 @@ parser.add_argument('--loading_threads', default=8)
 
 parser.add_argument('--batch_size', default=32)
 
-parser.add_argument('--filename', default='query_emb.h5')
+parser.add_argument('--filename', default=None)
 
 parser.add_argument('--embedding_dim', default=128)
 
