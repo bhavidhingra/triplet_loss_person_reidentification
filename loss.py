@@ -51,3 +51,53 @@ def batch_hard(dists, pids, margin,batch_precision_at_k=1):
         return diff, top1, prec_at_k, topk_is_same, negative_dists, positive_dists
 
 
+
+def batch_all(dists, pids, margin,batch_precision_at_k=1):
+    with tf.name_scope("batch_all"):
+        same_identity_mask = tf.equal(tf.expand_dims(pids, axis=1),
+                                      tf.expand_dims(pids, axis=0))
+        negative_mask = tf.logical_not(same_identity_mask)
+        negative_mask=tf.cast(negative_mask, tf.float32)
+        positive_mask = tf.math.logical_xor(same_identity_mask,
+                                       tf.eye(tf.shape(pids)[0], dtype=tf.bool))
+        positive_mask = tf.cast(positive_mask, tf.float32)
+        aps = dists*positive_mask
+        p = tf.cast(aps>0,tf.float32)
+        ans = dists*negative_mask
+        n = tf.cast(ans>0,tf.float32)
+
+        diff = tf.expand_dims(aps,axis=2) - tf.expand_dims(ans,axis=1)
+        mask = tf.expand_dims(p,axis=2)*tf.expand_dims(n,axis=1)
+        diff = tf.reduce_mean(tf.reduce_mean(diff*mask,0),0)
+
+        if isinstance(margin, numbers.Real):
+            diff = tf.maximum(diff + margin, 0.0)
+        elif margin == 'soft':
+            diff = tf.nn.softplus(diff)
+        elif margin.lower() == 'none':
+            pass
+        else:
+            raise NotImplementedError(
+                'The margin {} is not implemented in batch_all'.format(margin))
+        
+        _, indices = tf.nn.top_k(-dists, k=batch_precision_at_k+1)
+
+        indices = indices[:,1:]
+
+        batch_index = tf.tile(
+            tf.expand_dims(tf.range(tf.shape(indices)[0]), 1),
+            (1, tf.shape(indices)[1]))
+
+        topk_indices = tf.stack((batch_index, indices), -1)
+
+        topk_is_same = tf.gather_nd(same_identity_mask, topk_indices)
+
+        topk_is_same_f32 = tf.cast(topk_is_same, tf.float32)
+        top1 = tf.reduce_mean(topk_is_same_f32[:,0])
+        prec_at_k = tf.reduce_mean(topk_is_same_f32)
+
+        negative_dists = tf.boolean_mask(dists, negative_mask)
+        positive_dists = tf.boolean_mask(dists, positive_mask)
+
+        return diff, top1, prec_at_k, topk_is_same, negative_dists, positive_dists
+
