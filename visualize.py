@@ -74,10 +74,10 @@ plt.show()
 
 # ax = plt.figure(figsize=(16,10)).gca(projection='3d')
 # ax.scatter(
-#     xs=tsne_pca_results[rndperm,0], 
-#     ys=tsne_pca_results[rndperm,1], 
-#     zs=tsne_pca_results[rndperm,2], 
-#     c=pids[rndperm], 
+#     xs=tsne_pca_results[rndperm,0],
+#     ys=tsne_pca_results[rndperm,1],
+#     zs=tsne_pca_results[rndperm,2],
+#     c=pids[rndperm],
 #     cmap='tab10'
 # )
 # ax.set_xlabel('pca-one')

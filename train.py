@@ -16,14 +16,11 @@ from models import Trinet
 parser = ArgumentParser()
 
 # Required arguments
-parser.add_argument(
-    '--experiment_root', default="./marketroot")
+parser.add_argument('--experiment_root', default="./marketroot")
 
-parser.add_argument(
-    '--train_set',default="data/market1501_train.csv")
+parser.add_argument('--train_set',default="data/market1501_train.csv")
 
-parser.add_argument(
-    '--image_root', type=common.readable_directory,default="../Market-1501-v15.09.15")
+parser.add_argument('--image_root', type=common.readable_directory,default="../Market-1501-v15.09.15")
 
 # Optional with defaults.
 parser.add_argument('--resume', default=False)
@@ -84,15 +81,8 @@ def sample_k_fids_for_pid(pid, all_fids, all_pids, batch_k):
 
 
 def main():
-        # my_devices = tf.config.experimental.list_physical_devices(device_type='CPU')
-        # tf.config.experimental.set_visible_devices(devices= my_devices, device_type='CPU')
 
-        # # To find out which devices your operations and tensors are assigned to
-        # tf.debugging.set_log_device_placement(True)
         args = parser.parse_args(args=[])
-        
-        
-
         show_all_parameters( args)
 
         if not args.train_set:
@@ -197,12 +187,7 @@ def main():
             if epoch%args.checkpoint_frequency == 0:
                 manager.save()
                 
-                
-
-
-   
-
-
+       
 
 if __name__ == '__main__':
     main()
